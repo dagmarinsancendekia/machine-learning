@@ -26,6 +26,16 @@ class MLModelTrainer:
         # Handle categorical variables
         X = pd.get_dummies(X, drop_first=True)
 
+        # Ensure we have at least 2 samples for splitting
+        if len(df) < 2:
+            raise ValueError("Dataset must have at least 2 samples")
+
+        # Adjust test_size if dataset is too small
+        if len(df) < 5:
+            test_size = 0.5
+        elif len(df) < 10:
+            test_size = 0.3
+
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42)
 
         return X_train, X_test, y_train, y_test
