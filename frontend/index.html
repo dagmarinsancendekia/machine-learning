@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel Analyzer & Learner</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .upload-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .upload-section.dragover {
+            border-color: #007bff;
+            background-color: #f8f9fa;
+        }
+        #fileInput {
+            margin: 10px 0;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .results {
+            margin-top: 20px;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .error {
+            color: red;
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .success {
+            color: green;
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .stats, .visualization {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .model-results {
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Excel Analyzer & Learner</h1>
+
+        <div class="upload-section" id="uploadSection">
+            <h3>Upload Excel File</h3>
+            <p>Drag and drop an Excel file here or click to browse</p>
+            <input type="file" id="fileInput" accept=".xlsx,.xls">
+            <br>
+            <button id="analyzeBtn" disabled>Analyze Data</button>
+            <button id="trainModelBtn" disabled>Train ML Model</button>
+        </div>
+
+        <div class="loading" id="loading">
+            <p>Processing... Please wait.</p>
+        </div>
+
+        <div id="messages"></div>
+
+        <div class="results" id="results" style="display: none;">
+            <h3>Analysis Results</h3>
+
+            <div class="stats" id="stats">
+                <h4>Data Statistics</h4>
+                <div id="statsContent"></div>
+            </div>
+
+            <div class="visualization" id="visualization">
+                <h4>Data Visualization</h4>
+                <div id="vizContent"></div>
+            </div>
+
+            <div class="model-results" id="modelResults">
+                <h4>Machine Learning Results</h4>
+                <div id="modelContent"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const uploadSection = document.getElementById('uploadSection');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const trainModelBtn = document.getElementById('trainModelBtn');
+        const loading = document.getElementById('loading');
+        const results = document.getElementById('results');
+        const messages = document.getElementById('messages');
+        const statsContent = document.getElementById('statsContent');
+        const vizContent = document.getElementById('vizContent');
+        const modelContent = document.getElementById('modelContent');
+
+        let uploadedFile = null;
+        let uploadedFilePath = null;
+
+        // Drag and drop functionality
+        uploadSection.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadSection.classList.add('dragover');
+        });
+
+        uploadSection.addEventListener('dragleave', () => {
+            uploadSection.classList.remove('dragover');
+        });
+
+        uploadSection.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadSection.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileSelect(files[0]);
+            }
+        });
+
+        uploadSection.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFileSelect(e.target.files[0]);
+            }
+        });
+
+        function handleFileSelect(file) {
+            if (file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+                file.type === 'application/vnd.ms-excel' ||
+                file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+                uploadedFile = file;
+                uploadSection.innerHTML = `
+                    <h3>File Selected: ${file.name}</h3>
+                    <p>Size: ${(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                    <button id="uploadBtn">Upload File</button>
+                    <button id="changeFileBtn">Change File</button>
+                `;
+                document.getElementById('uploadBtn').addEventListener('click', uploadFile);
+                document.getElementById('changeFileBtn').addEventListener('click', resetUpload);
+            } else {
+                showMessage('Please select a valid Excel file (.xlsx or .xls)', 'error');
+            }
+        }
+
+        async function uploadFile() {
+            if (!uploadedFile) return;
+
+            loading.style.display = 'block';
+            clearMessages();
+
+            const formData = new FormData();
+            formData.append('file', uploadedFile);
+
+            try {
+                const uploadResponse = await fetch('http://127.0.0.1:3000/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const uploadData = await uploadResponse.json();
+
+                if (uploadResponse.ok) {
+                    uploadedFilePath = uploadData.file_info.filepath;
+                    uploadSection.innerHTML = `
+                        <h3>File Uploaded Successfully: ${uploadedFile.name}</h3>
+                        <p>Size: ${(uploadedFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                        <button id="analyzeBtn">Analyze Data</button>
+                        <button id="trainModelBtn">Train ML Model</button>
+                        <button id="changeFileBtn">Change File</button>
+                    `;
+                    document.getElementById('analyzeBtn').addEventListener('click', analyzeData);
+                    document.getElementById('trainModelBtn').addEventListener('click', trainModel);
+                    document.getElementById('changeFileBtn').addEventListener('click', resetUpload);
+                    showMessage('File uploaded successfully!', 'success');
+                } else {
+                    showMessage(uploadData.error || 'File upload failed', 'error');
+                }
+            } catch (error) {
+                showMessage('Error connecting to server: ' + error.message, 'error');
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        function resetUpload() {
+            uploadedFile = null;
+            uploadedFilePath = null;
+            uploadSection.innerHTML = `
+                <h3>Upload Excel File</h3>
+                <p>Drag and drop an Excel file here or click to browse</p>
+                <input type="file" id="fileInput" accept=".xlsx,.xls">
+                <br>
+                <button id="analyzeBtn" disabled>Analyze Data</button>
+                <button id="trainModelBtn" disabled>Train ML Model</button>
+            `;
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    handleFileSelect(e.target.files[0]);
+                }
+            });
+            results.style.display = 'none';
+        }
+
+        async function analyzeData() {
+            if (!uploadedFilePath) return;
+
+            loading.style.display = 'block';
+            results.style.display = 'none';
+            clearMessages();
+
+            try {
+                const analyzeResponse = await fetch('http://127.0.0.1:3000/api/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ filepath: uploadedFilePath })
+                });
+
+                const analyzeData = await analyzeResponse.json();
+
+                if (analyzeResponse.ok) {
+                    displayResults(analyzeData);
+                    showMessage('Analysis completed successfully!', 'success');
+                } else {
+                    showMessage(analyzeData.error || 'Analysis failed', 'error');
+                }
+            } catch (error) {
+                showMessage('Error connecting to server: ' + error.message, 'error');
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        async function trainModel() {
+            if (!uploadedFilePath) return;
+
+            loading.style.display = 'block';
+            results.style.display = 'none';
+            clearMessages();
+
+            // Ask user for target column and model type
+            const targetColumn = prompt('Enter the target column name for prediction:');
+            if (!targetColumn) return;
+
+            const modelType = prompt('Enter model type (regression/classification):', 'regression');
+            if (!modelType || !['regression', 'classification'].includes(modelType)) {
+                showMessage('Invalid model type. Please enter "regression" or "classification".', 'error');
+                return;
+            }
+
+            try {
+                // Train the model
+                const trainResponse = await fetch('http://127.0.0.1:3000/api/train-model', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        filepath: uploadedFilePath,
+                        target_column: targetColumn,
+                        model_type: modelType
+                    })
+                });
+
+                const trainData = await trainResponse.json();
+
+                if (trainResponse.ok) {
+                    displayModelResults(trainData);
+                    showMessage('Model training completed!', 'success');
+                } else {
+                    showMessage(trainData.error || 'Model training failed', 'error');
+                }
+            } catch (error) {
+                showMessage('Error connecting to server: ' + error.message, 'error');
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        function displayResults(data) {
+            results.style.display = 'block';
+
+            // Display statistics
+            if (data.analysis) {
+                let statsHtml = '<table><tr><th>Statistic</th><th>Value</th></tr>';
+                for (const [key, value] of Object.entries(data.analysis)) {
+                    statsHtml += `<tr><td>${key}</td><td>${JSON.stringify(value)}</td></tr>`;
+                }
+                statsHtml += '</table>';
+                statsContent.innerHTML = statsHtml;
+            }
+
+            // Display visualization (placeholder for now)
+            if (data.image) {
+                vizContent.innerHTML = '<p>Data Visualization:</p><img src="data:image/png;base64,' + data.image + '" alt="Data Visualization" style="max-width: 100%;">';
+            }
+        }
+
+        function displayModelResults(data) {
+            results.style.display = 'block';
+
+            if (data.result) {
+                let modelHtml = '<h4>Model Performance</h4>';
+                modelHtml += '<table><tr><th>Metric</th><th>Value</th></tr>';
+                for (const [key, value] of Object.entries(data.result)) {
+                    modelHtml += `<tr><td>${key}</td><td>${JSON.stringify(value)}</td></tr>`;
+                }
+                modelHtml += '</table>';
+                modelContent.innerHTML = modelHtml;
+            }
+        }
+
+        function showMessage(message, type) {
+            const div = document.createElement('div');
+            div.className = type;
+            div.textContent = message;
+            messages.appendChild(div);
+            setTimeout(() => div.remove(), 5000);
+        }
+
+        function clearMessages() {
+            messages.innerHTML = '';
+        }
+
+        // Check server health on load
+        window.addEventListener('load', async () => {
+            try {
+                const response = await fetch('http://127.0.0.1:3000/api/health');
+                if (!response.ok) {
+                    showMessage('Backend server is not running. Please start the backend first.', 'error');
+                }
+            } catch (error) {
+                showMessage('Cannot connect to backend server. Please ensure the backend is running on port 3000.', 'error');
+            }
+        });
+    </script>
+</body>
+</html>

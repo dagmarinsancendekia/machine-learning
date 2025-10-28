@@ -1,9 +1,14 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import pandas as pd
 import os
+import sys
 from werkzeug.utils import secure_filename
 import json
+
+# Add backend directory to Python path
+sys.path.insert(0, os.path.dirname(__file__))
+
 from data_processor import DataProcessor
 from ml_models import MLModelTrainer
 
@@ -122,6 +127,9 @@ def train_model():
     try:
         df = pd.read_excel(filepath)
 
+        # Clean the data before training
+        df = data_processor.clean_data(df)
+
         if model_type == 'regression':
             result = model_trainer.train_regression_model(df, target_col, algorithm)
         elif model_type == 'classification':
@@ -161,6 +169,14 @@ def get_models():
         return jsonify({'models': models}), 200
     except Exception as e:
         return jsonify({'error': f'Failed to retrieve models: {str(e)}'}), 500
+
+@app.route('/frontend/<path:filename>')
+def serve_frontend(filename):
+    return send_from_directory('../frontend', filename)
+
+@app.route('/')
+def serve_index():
+    return send_from_directory('../frontend', 'index.html')
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=3000)
