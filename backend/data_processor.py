@@ -31,9 +31,9 @@ class DataProcessor:
         # Handle missing values (simple imputation)
         for col in df.columns:
             if df[col].dtype in ['int64', 'float64']:
-                df[col].fillna(df[col].mean(), inplace=True)
+                df[col] = df[col].fillna(df[col].mean())
             else:
-                df[col].fillna(df[col].mode()[0] if not df[col].mode().empty else 'Unknown', inplace=True)
+                df[col] = df[col].fillna(df[col].mode()[0] if not df[col].mode().empty else 'Unknown')
 
         return df
 

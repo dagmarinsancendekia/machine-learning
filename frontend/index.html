@@ -173,9 +173,12 @@
             }
         });
 
-        uploadSection.addEventListener('click', () => {
+        // Store the click handler reference
+        const uploadSectionClickHandler = () => {
             fileInput.click();
-        });
+        };
+
+        uploadSection.addEventListener('click', uploadSectionClickHandler);
 
         fileInput.addEventListener('change', (e) => {
             if (e.target.files.length > 0) {
@@ -188,6 +191,8 @@
                 file.type === 'application/vnd.ms-excel' ||
                 file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
                 uploadedFile = file;
+                // Remove the click listener to prevent re-triggering file selection
+                uploadSection.removeEventListener('click', uploadSectionClickHandler);
                 uploadSection.innerHTML = `
                     <h3>File Selected: ${file.name}</h3>
                     <p>Size: ${(file.size / 1024 / 1024).toFixed(2)} MB</p>
@@ -252,6 +257,8 @@
                 <button id="analyzeBtn" disabled>Analyze Data</button>
                 <button id="trainModelBtn" disabled>Train ML Model</button>
             `;
+            // Re-add the click handler for the upload section
+            uploadSection.addEventListener('click', uploadSectionClickHandler);
             fileInput.addEventListener('change', (e) => {
                 if (e.target.files.length > 0) {
                     handleFileSelect(e.target.files[0]);
